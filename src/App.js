@@ -1,149 +1,190 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+import React, { useMemo, useState, useEffect } from 'react';
+import './App.css';
 
-body {
-  margin: 0;
-  background: linear-gradient(135deg, #212121, #424242); /* Dark Avengers theme */
-  font-family: 'Poppins', sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background-size: cover;
-  text-align: center;
+const initialBoard = Array(9).fill(null);
+const computerSymbol = 'O';
+const playerSymbol = 'X';
+
+// __define-ocg__
+function App() {
+  const [name, setName] = useState('');
+  const [started, setStarted] = useState(false);
+  const [board, setBoard] = useState(initialBoard);
+  const [winner, setWinner] = useState(null);
+  const [isBgMusicEnabled, setIsBgMusicEnabled] = useState(true);
+  const [isBgMusicPlaying, setIsBgMusicPlaying] = useState(false);
+
+  // Sounds
+  const clickSound = new Audio(process.env.PUBLIC_URL + '/sounds/click.mp3');
+  
+  const bgMusic = useMemo(() => {
+    const music = new Audio(process.env.PUBLIC_URL + '/sounds/bg-music.mp3');
+    music.loop = true;
+    return music;
+  }, []);
+
+  const winSound = useMemo(() => new Audio(process.env.PUBLIC_URL + '/sounds/win.mp3'), []);
+  const drawSound = useMemo(() => new Audio(process.env.PUBLIC_URL + '/sounds/draw.mp3'), []);
+
+  // 🧠 Wait for user interaction to allow autoplay
+  useEffect(() => {
+    const handleInteraction = () => {
+      if (isBgMusicEnabled && !isBgMusicPlaying && !started) {
+        bgMusic.play().then(() => {
+          setIsBgMusicPlaying(true);
+        }).catch((err) => {
+          console.warn('Autoplay blocked:', err);
+        });
+      }
+      window.removeEventListener('click', handleInteraction);
+    };
+
+    window.addEventListener('click', handleInteraction);
+
+    return () => {
+      window.removeEventListener('click', handleInteraction);
+    };
+  }, [bgMusic, isBgMusicEnabled, isBgMusicPlaying, started]);
+
+  // Handle music toggle and pause logic
+  useEffect(() => {
+    if (isBgMusicEnabled && !started) {
+      if (!isBgMusicPlaying) {
+        bgMusic.play().then(() => {
+          setIsBgMusicPlaying(true);
+        }).catch((err) => {
+          console.warn('Autoplay blocked on enable:', err);
+        });
+      }
+    } else {
+      bgMusic.pause();
+      bgMusic.currentTime = 0;
+      setIsBgMusicPlaying(false);
+    }
+
+    return () => {
+      bgMusic.pause();
+      bgMusic.currentTime = 0;
+      setIsBgMusicPlaying(false);
+    };
+  }, [isBgMusicEnabled, bgMusic, started, isBgMusicPlaying]);
+
+  const handleNameSubmit = () => {
+    if (name.trim()) {
+      setStarted(true);
+    }
+  };
+
+  const handleClick = (index) => {
+    if (board[index] || winner) return;
+    clickSound.play();
+    const newBoard = [...board];
+    newBoard[index] = playerSymbol;
+    setBoard(newBoard);
+  };
+
+  const checkWinner = (board) => {
+    const combos = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8],
+      [0, 3, 6], [1, 4, 7], [2, 5, 8],
+      [0, 4, 8], [2, 4, 6],
+    ];
+    for (let [a, b, c] of combos) {
+      if (board[a] && board[a] === board[b] && board[b] === board[c]) {
+        return board[a];
+      }
+    }
+    if (!board.includes(null)) return 'Draw';
+    return null;
+  };
+
+  const computerMove = (board) => {
+    const empty = board.map((val, i) => (val === null ? i : null)).filter((i) => i !== null);
+    return empty[Math.floor(Math.random() * empty.length)];
+  };
+
+  useEffect(() => {
+    const gameResult = checkWinner(board);
+
+    if (gameResult) {
+      setWinner(gameResult);
+      if (gameResult === 'Draw') {
+        drawSound.play();
+      } else if (gameResult === 'X') {
+        winSound.play();
+      }
+    } else if (board.filter(Boolean).length % 2 === 1) {
+      const move = computerMove(board);
+      if (move !== undefined) {
+        const newBoard = [...board];
+        newBoard[move] = computerSymbol;
+
+        const timeout = setTimeout(() => {
+          setBoard(newBoard);
+        }, 500);
+
+        return () => clearTimeout(timeout);
+      }
+    }
+  }, [board, drawSound, winSound]);
+
+  const resetGame = () => {
+    setBoard(initialBoard);
+    setWinner(null);
+    setStarted(false);
+  };
+
+  const toggleBgMusic = () => {
+    setIsBgMusicEnabled((prev) => !prev);
+  };
+
+  return (
+    <div className="app">
+      {!started ? (
+        <div>
+          <h1 className="game-heading">
+            Welcome<br />To<br />Tic Tac Toe Game !
+          </h1>
+          <input
+            type="text"
+            placeholder="Enter your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <br />
+          <button onClick={handleNameSubmit}>Start Game</button>
+        </div>
+      ) : (
+        <div>
+          <h2>Hello, {name}! Your move!</h2>
+          <div className="board">
+            {board.map((cell, i) => (
+              <div key={i} className="cell" onClick={() => handleClick(i)}>
+                {cell}
+              </div>
+            ))}
+          </div>
+          {winner && (
+            <div className="popup">
+              <h2>
+                {winner === 'Draw'
+                  ? `🤝 Aree Yaar , Game Draw ! ${name}!`
+                  : winner === 'X'
+                    ? `🎉 7 Crore, Jeet Hui Hai aapki  ${name}!`
+                    : `💻 Oh Nahi! Computer Mahashay ki jeet hui !`}
+              </h2>
+              <button onClick={resetGame}>Play Again</button>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="music-control">
+        <button onClick={toggleBgMusic}>
+          {isBgMusicEnabled ? 'Pause Music' : 'Play Music'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
-.app {
-  width: 90%;
-  max-width: 480px;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.85); /* Dark background */
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-  text-align: center;
-}
-
-.game-heading {
-  font-size: 3rem; /* Larger font size */
-  line-height: 1.4;
-  color: #ffcc00; /* Avengers yellow/gold for the "To" part */
-  margin-bottom: 20px;
-  font-weight: 600;
-}
-
-.game-heading span {
-  color: #d32f2f; /* Red for "TIC-TAC-TOE" part */
-}
-
-h2 {
-  font-size: 1.3rem; /* Increased font size */
-  color: #f5f5f5; /* Light gray for the rest of the text */
-  margin-top: 1rem;
-  font-weight: 600;
-}
-
-input {
-  padding: 12px 18px;
-  font-size: 1rem;
-  border: 2px solid #ffcc00; /* Gold border */
-  border-radius: 6px;
-  outline: none;
-  width: 65%;
-  margin-top: 10px;
-  font-weight: 600;
-}
-
-button {
-  background-color: #ffcc00; /* Gold color */
-  color: black;
-  border: none;
-  padding: 12px 18px;
-  font-size: 1.1rem;
-  margin-top: 15px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.3s;
-  width: 65%;
-  font-weight: 600;
-}
-
-button:hover {
-  background-color: #fbc02d; /* Slightly darker gold on hover */
-}
-
-.board {
-  display: grid;
-  grid-template-columns: repeat(3, 90px);
-  gap: 12px;
-  justify-content: center;
-  margin: 25px auto;
-  animation: fadeIn 0.8s ease-in;
-}
-
-.cell {
-  background: white;
-  border: 3px solid #ffcc00; /* Gold border */
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #d32f2f; /* Red for the text */
-  height: 90px;
-  width: 90px;
-  border-radius: 12px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: background 0.2s ease;
-  cursor: pointer;
-  user-select: none;
-}
-
-.cell:hover {
-  background: #fbc02d; /* Gold hover effect */
-}
-
-.popup {
-  background: #212121; /* Dark background */
-  padding: 16px 22px;
-  margin-top: 20px;
-  border: 2px solid #ffcc00; /* Gold border */
-  border-radius: 12px;
-  display: inline-block;
-  animation: popIn 0.4s ease;
-  color: #ffcc00; /* Gold text */
-  font-weight: 600;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes popIn {
-  0% { transform: scale(0.7); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-@media (max-width: 600px) {
-  .board {
-    grid-template-columns: repeat(3, 80px);
-    gap: 10px;
-  }
-
-  .cell {
-    width: 80px;
-    height: 80px;
-    font-size: 2rem;
-  }
-
-  input, button {
-    width: 80%;
-    font-size: 1rem;
-  }
-
-  h1, .game-heading {
-    font-size: 2rem;
-  }
-
-  h2 {
-    font-size: 1.2rem;
-  }
-}
+export default App;

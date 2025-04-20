@@ -14,19 +14,24 @@ function App() {
   const [isBgMusicEnabled, setIsBgMusicEnabled] = useState(true);
   const [isBgMusicPlaying, setIsBgMusicPlaying] = useState(false);
 
-  // Sounds
-  const clickSound = new Audio(process.env.PUBLIC_URL + '/sounds/click.mp3');
-  
+  // 🎵 Memoized Audio
+  const clickSound = useMemo(() => new Audio(process.env.PUBLIC_URL + '/sounds/click.mp3'), []);
   const bgMusic = useMemo(() => {
     const music = new Audio(process.env.PUBLIC_URL + '/sounds/bg-music.mp3');
     music.loop = true;
     return music;
   }, []);
-
   const winSound = useMemo(() => new Audio(process.env.PUBLIC_URL + '/sounds/win.mp3'), []);
   const drawSound = useMemo(() => new Audio(process.env.PUBLIC_URL + '/sounds/draw.mp3'), []);
 
-  // 🧠 Wait for user interaction to allow autoplay
+  // 🧠 Preload audio
+  useEffect(() => {
+    clickSound.load();
+    winSound.load();
+    drawSound.load();
+  }, [clickSound, winSound, drawSound]);
+
+  // 🎵 Background Music: User Interaction Autoplay Fix
   useEffect(() => {
     const handleInteraction = () => {
       if (isBgMusicEnabled && !isBgMusicPlaying && !started) {
@@ -46,7 +51,7 @@ function App() {
     };
   }, [bgMusic, isBgMusicEnabled, isBgMusicPlaying, started]);
 
-  // Handle music toggle and pause logic
+  // 🎵 Handle Background Music Enable/Disable
   useEffect(() => {
     if (isBgMusicEnabled && !started) {
       if (!isBgMusicPlaying) {
@@ -77,7 +82,11 @@ function App() {
 
   const handleClick = (index) => {
     if (board[index] || winner) return;
-    clickSound.play();
+
+    clickSound.play().catch((err) => {
+      console.warn('Click sound blocked:', err);
+    });
+
     const newBoard = [...board];
     newBoard[index] = playerSymbol;
     setBoard(newBoard);
@@ -109,9 +118,13 @@ function App() {
     if (gameResult) {
       setWinner(gameResult);
       if (gameResult === 'Draw') {
-        drawSound.play();
+        drawSound.play().catch((err) => {
+          console.warn('Draw sound blocked:', err);
+        });
       } else if (gameResult === 'X') {
-        winSound.play();
+        winSound.play().catch((err) => {
+          console.warn('Win sound blocked:', err);
+        });
       }
     } else if (board.filter(Boolean).length % 2 === 1) {
       const move = computerMove(board);
